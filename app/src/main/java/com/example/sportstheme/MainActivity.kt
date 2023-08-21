@@ -4,16 +4,15 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Bundle
-import android.webkit.CookieManager
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
-import com.example.sportstheme.R
 import com.google.firebase.FirebaseApp
 import com.google.firebase.remoteconfig.BuildConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
+import java.io.IOException
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
@@ -49,7 +48,19 @@ class MainActivity : AppCompatActivity() {
                         if (isNetworkAvailable()) {
                             webView.loadUrl(webViewUrl)
                         } else {
-                            webView.loadUrl("file:///android_asset/no_connection.html")
+                            // Check if local no_connection.html exists
+                            val localNoConnectionUrl = "file:///android_asset/no_connection.html"
+                            val localNoConnectionExists = try {
+                                assets.open("no_connection.html")
+                                true
+                            } catch (e: IOException) {
+                                false
+                            }
+                            if (localNoConnectionExists) {
+                                webView.loadUrl(localNoConnectionUrl)
+                            } else {
+                                webView.loadUrl("file:///android_asset/sport_placeholder.html")
+                            }
                         }
                     } else {
                         webView.loadUrl("file:///android_asset/sport_placeholder.html")
@@ -59,6 +70,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
     }
+
 
     private fun isNetworkAvailable(): Boolean {
         val connectivityManager =
