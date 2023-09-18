@@ -1,6 +1,7 @@
-package com.example.sportstheme
+package sgane.up.laaco
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.os.Build
 import android.os.Bundle
@@ -19,6 +20,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var remoteConfig: FirebaseRemoteConfig
+    private lateinit var sharedPreferences: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,42 +37,67 @@ class MainActivity : AppCompatActivity() {
         webSettings.loadWithOverviewMode = true
         webSettings.useWideViewPort = true
 
-        remoteConfig = FirebaseRemoteConfig.getInstance()
-        val configSettings = FirebaseRemoteConfigSettings.Builder()
-            .setMinimumFetchIntervalInSeconds(3600)
-            .build()
-        remoteConfig.setConfigSettingsAsync(configSettings)
-        remoteConfig.fetchAndActivate()
-            .addOnCompleteListener(this) { task ->
-                if (task.isSuccessful) {
-                    val webViewUrl = remoteConfig.getString("webview_url")
-                    if (webViewUrl.isNotEmpty()) {
-                        if (isNetworkAvailable()) {
-                            webView.loadUrl(webViewUrl)
-                        } else {
-                            // Check if local no_connection.html exists
-                            val localNoConnectionUrl = "file:///android_asset/no_connection.html"
-                            val localNoConnectionExists = try {
-                                assets.open("no_connection.html")
-                                true
-                            } catch (e: IOException) {
-                                false
-                            }
-                            if (localNoConnectionExists) {
-                                webView.loadUrl(localNoConnectionUrl)
+        sharedPreferences = getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
+
+        val savedUrl = sharedPreferences.getString("webViewUrl", "")
+        if (savedUrl!!.isNotEmpty()) {
+            webView.loadUrl(savedUrl)
+        } else {
+            remoteConfig = FirebaseRemoteConfig.getInstance()
+            val configSettings = FirebaseRemoteConfigSettings.Builder()
+                .setMinimumFetchIntervalInSeconds(3600)
+                .build()
+            remoteConfig.setConfigSettingsAsync(configSettings)
+            remoteConfig.fetchAndActivate()
+                .addOnCompleteListener(this) { task ->
+                    if (task.isSuccessful) {
+                        val webViewUrl = remoteConfig.getString("webview_url")
+                        if (webViewUrl.isNotEmpty()) {
+                            if (isNetworkAvailable()) {
+                                webView.loadUrl(webViewUrl)
+                                // Сохраняем URL в SharedPreferences
+                                sharedPreferences.edit().putString("webViewUrl", webViewUrl).apply()
                             } else {
-                                webView.loadUrl("file:///android_asset/sport_placeholder.html")
+                                val localNoConnectionUrl = "file:///android_asset/no_connection.html"
+                                val localNoConnectionExists = try {
+                                    assets.open("no_connection.html")
+                                    true
+                                } catch (e: IOException) {
+                                    false
+                                }
+                                if (localNoConnectionExists) {
+                                    webView.loadUrl(localNoConnectionUrl)
+                                } else {
+                                    if (shouldShowTicTacToe()) {
+                                        startActivity(TicTacToeActivity.newIntent(this))
+                                        finish()
+                                    } else {
+                                        webView.loadUrl("file:///android_asset/sport_placeholder.html")
+                                    }
+                                }
                             }
+                        } else {
+                            //webView.loadUrl("file:///android_asset/sport_placeholder.html")
+                            startActivity(TicTacToeActivity.newIntent(this))
+                            finish()
                         }
                     } else {
-                        webView.loadUrl("file:///android_asset/sport_placeholder.html")
+                        webView.loadUrl("file:///android_asset/error.html")
                     }
-                } else {
-                    webView.loadUrl("file:///android_asset/error.html")
                 }
+        }
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
             }
+        }
     }
 
+    private fun shouldShowTicTacToe(): Boolean {
+        val showTicTacToeFlag = remoteConfig.getBoolean("show_tic_tac_toe")
+        return showTicTacToeFlag
+    }
 
     private fun isNetworkAvailable(): Boolean {
         val connectivityManager =
